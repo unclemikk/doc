@@ -16,8 +16,11 @@ var mkdirp = require('mkdirp');
 var slugify = require('slugify');
 var through = require('through2');
 var File = require('vinyl');
-var hljs = require('highlight.js');
 var print = require('gulp-print');
+
+const fs = require('fs');
+
+var hljs = require('highlight.js');
 var frontmatter = require('front-matter');
 var markdown = require('markdown-it');
 var md_attrs = require('markdown-it-attrs');
@@ -27,7 +30,7 @@ var md_sub = require('markdown-it-sub');
 var md_sup = require('markdown-it-sup');
 var md_katex = require('markdown-it-katex');
 
-var exec = require('child_process').exec;
+var exec = require('child_process');
 
 // hljs lua highlight patched
 var lua = require('./lib/lua');
@@ -115,13 +118,24 @@ md.renderer.rules.image = function (tokens, idx, options, env, self) {
     return self.renderToken(tokens, idx, options);
 };
 
+// Charts
+var default_fence_rule = md.renderer.rules.fence;
+md.renderer.rules.fence = function (tokens, idx, options, env, self) {
+    var token = tokens[idx];
+
+    if (token.info === 'linechart') {
+        const code = token.content.trim();
+        const svg = exec.execFileSync('node', ['svg_chart.js'], { input: code });
+        return '<div class="ct-chart ct-golden-section">' + svg + '</div>';
+    }
+    return default_fence_rule(tokens, idx, options, env, self);
+}
+
 // Output preview html documents
 function markdownToPreviewHtml(file) {
     var data = frontmatter(file.contents.toString());
     // Inject some styling html for the preview. The built htmls are clean.
-    var head = '<!DOCTYPE html><html><head><link type="text/css" rel="stylesheet" href="/preview-md.css">' +
-                '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">' + 
-                '</head><body>\n';
+    var head = '<!DOCTYPE html><html><head><link type="text/css" rel="stylesheet" href="/preview-md.css"></head><body>\n';
     head += '<div class="documentation">';
     var foot = '</div></body></html>\n';
     var html = head + md.render(data.body) + foot;
